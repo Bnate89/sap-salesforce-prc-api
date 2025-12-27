@@ -6,6 +6,7 @@ MuleSoft 4 API for real-time Salesforce CPQ and SAP S/4HANA integration, providi
 <img width="1127" height="518" alt="image" src="https://github.com/user-attachments/assets/ed36856c-de2b-40c0-8d1e-875cd950ddd8" />
 
 <img width="1079" height="633" alt="image" src="https://github.com/user-attachments/assets/5310236b-2aee-493c-a1ad-9a12c5f9f414" />
+<img width="1361" height="661" alt="image" src="https://github.com/user-attachments/assets/96908909-ff85-4a79-9a5a-a9129bceed22" />
 
 <img width="1340" height="664" alt="image" src="https://github.com/user-attachments/assets/5af7efab-57ee-4436-b58d-186ed921d7d5" />
 <img width="684" height="549" alt="image" src="https://github.com/user-attachments/assets/746a7c66-d1fe-4cd1-a517-edaf8926d5af" />
