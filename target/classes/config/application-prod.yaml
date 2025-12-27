@@ -1,0 +1,6 @@
+sap:
+  host: "sap-prod.company.com"
+  port: "443"
+api:
+  autodiscovery:
+    id: "67890"

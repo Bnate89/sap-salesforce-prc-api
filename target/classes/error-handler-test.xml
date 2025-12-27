@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+	xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+		http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+		http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+	<munit:config name="error-handler-test-suite" doc:name="MUnit Configuration"/>
+
+	<!-- Test 400 Bad Request Handling -->
+	<munit:test name="test-error-handler-bad-request" doc:name="Test 400 Bad Request" description="Test bad request error handling">
+		<munit:execution>
+			<try doc:name="Try">
+				<raise-error doc:name="Raise APIKIT:BAD_REQUEST" type="APIKIT:BAD_REQUEST" description="Invalid request body"/>
+				<error-handler ref="global-error-handler"/>
+			</try>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Error Code" expression="#[payload.errorCode]" is="#[MunitTools::equalTo('BAD_REQUEST')]"/>
+			<munit-tools:assert-equals doc:name="Assert HTTP Status 400" actual="#[vars.httpStatus]" expected="#[400]"/>
+		</munit:validation>
+	</munit:test>
+
+	<!-- Test 401 Unauthorized Handling -->
+	<munit:test name="test-error-handler-unauthorized" doc:name="Test 401 Unauthorized" description="Test unauthorized error handling">
+		<munit:execution>
+			<try doc:name="Try">
+				<raise-error doc:name="Raise HTTP:UNAUTHORIZED" type="HTTP:UNAUTHORIZED" description="Authentication required"/>
+				<error-handler ref="global-error-handler"/>
+			</try>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Error Code" expression="#[payload.errorCode]" is="#[MunitTools::equalTo('UNAUTHORIZED')]"/>
+			<munit-tools:assert-equals doc:name="Assert HTTP Status 401" actual="#[vars.httpStatus]" expected="#[401]"/>
+		</munit:validation>
+	</munit:test>
+
+	<!-- Test 500 Internal Server Error Handling -->
+	<munit:test name="test-error-handler-internal-error" doc:name="Test 500 Internal Server Error" description="Test internal server error handling">
+		<munit:execution>
+			<try doc:name="Try">
+				<raise-error doc:name="Raise Generic Error" type="APP:UNKNOWN" description="Unexpected error occurred"/>
+				<error-handler ref="global-error-handler"/>
+			</try>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Error Code" expression="#[payload.errorCode]" is="#[MunitTools::equalTo('INTERNAL_SERVER_ERROR')]"/>
+			<munit-tools:assert-equals doc:name="Assert HTTP Status 500" actual="#[vars.httpStatus]" expected="#[500]"/>
+		</munit:validation>
+	</munit:test>
+
+	<!-- Test 502 Bad Gateway Handling -->
+	<munit:test name="test-error-handler-bad-gateway" doc:name="Test 502 Bad Gateway" description="Test SAP connectivity error handling">
+		<munit:execution>
+			<try doc:name="Try">
+				<raise-error doc:name="Raise HTTP:CONNECTIVITY" type="HTTP:CONNECTIVITY" description="Unable to connect to SAP"/>
+				<error-handler ref="global-error-handler"/>
+			</try>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Error Code" expression="#[payload.errorCode]" is="#[MunitTools::equalTo('BAD_GATEWAY')]"/>
+			<munit-tools:assert-equals doc:name="Assert HTTP Status 502" actual="#[vars.httpStatus]" expected="#[502]"/>
+		</munit:validation>
+	</munit:test>
+
+	<!-- Test 504 Gateway Timeout Handling -->
+	<munit:test name="test-error-handler-timeout" doc:name="Test 504 Gateway Timeout" description="Test timeout error handling">
+		<munit:execution>
+			<try doc:name="Try">
+				<raise-error doc:name="Raise HTTP:TIMEOUT" type="HTTP:TIMEOUT" description="SAP request timed out"/>
+				<error-handler ref="global-error-handler"/>
+			</try>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Error Code" expression="#[payload.errorCode]" is="#[MunitTools::equalTo('GATEWAY_TIMEOUT')]"/>
+			<munit-tools:assert-equals doc:name="Assert HTTP Status 504" actual="#[vars.httpStatus]" expected="#[504]"/>
+		</munit:validation>
+	</munit:test>
+
+</mule>

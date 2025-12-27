@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+	<!-- Global Error Handler -->
+	<error-handler name="global-error-handler" doc:name="Global Error Handler">
+		
+		<!-- APIKIT:BAD_REQUEST - 400 -->
+		<on-error-propagate type="APIKIT:BAD_REQUEST" doc:name="On Error Propagate - Bad Request" enableNotifications="true" logException="true">
+			<ee:transform doc:name="Transform - 400 Error Response">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	errorCode: "BAD_REQUEST",
+	message: error.description default "Invalid request",
+	correlationId: correlationId,
+	timestamp: now() as String {format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"}
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable variableName="httpStatus"><![CDATA[400]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+		</on-error-propagate>
+
+		<!-- APIKIT:NOT_FOUND - 404 -->
+		<on-error-propagate type="APIKIT:NOT_FOUND" doc:name="On Error Propagate - Not Found" enableNotifications="true" logException="true">
+			<ee:transform doc:name="Transform - 404 Error Response">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	errorCode: "NOT_FOUND",
+	message: error.description default "Resource not found",
+	correlationId: correlationId,
+	timestamp: now() as String {format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"}
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable variableName="httpStatus"><![CDATA[404]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+		</on-error-propagate>
+
+		<!-- APIKIT:METHOD_NOT_ALLOWED - 405 -->
+		<on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED" doc:name="On Error Propagate - Method Not Allowed" enableNotifications="true" logException="true">
+			<ee:transform doc:name="Transform - 405 Error Response">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	errorCode: "METHOD_NOT_ALLOWED",
+	message: error.description default "Method not allowed",
+	correlationId: correlationId,
+	timestamp: now() as String {format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"}
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable variableName="httpStatus"><![CDATA[405]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+		</on-error-propagate>
+
+		<!-- HTTP:UNAUTHORIZED - 401 -->
+		<on-error-propagate type="HTTP:UNAUTHORIZED" doc:name="On Error Propagate - Unauthorized" enableNotifications="true" logException="true">
+			<ee:transform doc:name="Transform - 401 Error Response">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	errorCode: "UNAUTHORIZED",
+	message: error.description default "Authentication required",
+	correlationId: correlationId,
+	timestamp: now() as String {format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"}
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable variableName="httpStatus"><![CDATA[401]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+		</on-error-propagate>
+
+		<!-- HTTP:FORBIDDEN - 403 -->
+		<on-error-propagate type="HTTP:FORBIDDEN" doc:name="On Error Propagate - Forbidden" enableNotifications="true" logException="true">
+			<ee:transform doc:name="Transform - 403 Error Response">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	errorCode: "FORBIDDEN",
+	message: error.description default "Access denied",
+	correlationId: correlationId,
+	timestamp: now() as String {format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"}
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable variableName="httpStatus"><![CDATA[403]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+		</on-error-propagate>
+
+		<!-- HTTP:CONNECTIVITY - 502 -->
+		<on-error-propagate type="HTTP:CONNECTIVITY" doc:name="On Error Propagate - Connectivity" enableNotifications="true" logException="true">
+			<ee:transform doc:name="Transform - 502 Error Response">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	errorCode: "BAD_GATEWAY",
+	message: error.description default "Unable to connect to backend service",
+	correlationId: correlationId,
+	timestamp: now() as String {format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"}
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable variableName="httpStatus"><![CDATA[502]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+		</on-error-propagate>
+
+		<!-- HTTP:TIMEOUT - 504 -->
+		<on-error-propagate type="HTTP:TIMEOUT" doc:name="On Error Propagate - Timeout" enableNotifications="true" logException="true">
+			<ee:transform doc:name="Transform - 504 Error Response">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	errorCode: "GATEWAY_TIMEOUT",
+	message: error.description default "Backend service timeout",
+	correlationId: correlationId,
+	timestamp: now() as String {format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"}
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable variableName="httpStatus"><![CDATA[504]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+		</on-error-propagate>
+
+		<!-- MULE:EXPRESSION - 400 -->
+		<on-error-propagate type="MULE:EXPRESSION" doc:name="On Error Propagate - Expression" enableNotifications="true" logException="true">
+			<ee:transform doc:name="Transform - 400 Expression Error Response">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	errorCode: "BAD_REQUEST",
+	message: "Invalid data format or expression error",
+	correlationId: correlationId,
+	timestamp: now() as String {format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"}
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable variableName="httpStatus"><![CDATA[400]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+		</on-error-propagate>
+
+		<!-- ANY - 500 (Catch-all) -->
+		<on-error-propagate type="ANY" doc:name="On Error Propagate - Any" enableNotifications="true" logException="true">
+			<ee:transform doc:name="Transform - 500 Error Response">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	errorCode: "INTERNAL_SERVER_ERROR",
+	message: error.description default "An unexpected error occurred",
+	correlationId: correlationId,
+	timestamp: now() as String {format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"}
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable variableName="httpStatus"><![CDATA[500]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+		</on-error-propagate>
+
+	</error-handler>
+
+</mule>

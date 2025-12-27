@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+	<!-- POST /customers - Create Customer in SAP -->
+	<flow name="post:\customers:application\json:salesforce-sap-api-config" doc:name="POST /customers">
+		<flow-ref doc:name="Log Request" name="log-request-subflow"/>
+		<set-variable doc:name="Set Customer Request" variableName="customerRequest" value="#[payload]"/>
+		<ee:transform doc:name="Transform - SAP Customer Request">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	CustomerName: vars.customerRequest.name,
+	EmailAddress: vars.customerRequest.email default "",
+	PhoneNumber: vars.customerRequest.phone default "",
+	StreetName: vars.customerRequest.billingAddress.street default "",
+	CityName: vars.customerRequest.billingAddress.city default "",
+	Region: vars.customerRequest.billingAddress.state default "",
+	PostalCode: vars.customerRequest.billingAddress.postalCode default "",
+	Country: vars.customerRequest.billingAddress.country default ""
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<set-variable doc:name="Set SAP Path" variableName="sapPath" value="${sap.s4.basePath}/API_BUSINESS_PARTNER/A_BusinessPartner"/>
+		<flow-ref doc:name="SAP HTTP POST" name="sap-http-post-subflow"/>
+		<ee:transform doc:name="Transform - Customer Response">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	customerId: payload.d.BusinessPartner default "",
+	salesforceAccountId: vars.customerRequest.salesforceAccountId default "",
+	name: vars.customerRequest.name,
+	email: vars.customerRequest.email default "",
+	phone: vars.customerRequest.phone default "",
+	billingAddress: vars.customerRequest.billingAddress default null,
+	shippingAddress: vars.customerRequest.shippingAddress default null
+}]]></ee:set-payload>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="httpStatus"><![CDATA[201]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<flow-ref doc:name="Log Response" name="log-response-subflow"/>
+	</flow>
+
+	<!-- GET /customers - Get Customer from SAP -->
+	<flow name="get:\customers:salesforce-sap-api-config" doc:name="GET /customers">
+		<set-variable doc:name="Set customerId" variableName="customerId" value="#[attributes.queryParams.customerId]"/>
+		<flow-ref doc:name="Log Request" name="log-request-subflow"/>
+		<set-variable doc:name="Set SAP Path" variableName="sapPath" value="#['${sap.s4.basePath}/API_BUSINESS_PARTNER/A_BusinessPartner(' ++ &quot;'&quot; ++ vars.customerId ++ &quot;'&quot; ++ ')']"/>
+		<flow-ref doc:name="SAP HTTP GET" name="sap-http-get-subflow"/>
+		<ee:transform doc:name="Transform - Customer Response">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	customerId: payload.d.BusinessPartner default "",
+	salesforceAccountId: payload.d.Customer default "",
+	name: payload.d.BusinessPartnerFullName default "",
+	email: payload.d.EmailAddress default "",
+	phone: payload.d.PhoneNumber default "",
+	billingAddress: {
+		street: payload.d.StreetName default "",
+		city: payload.d.CityName default "",
+		state: payload.d.Region default "",
+		postalCode: payload.d.PostalCode default "",
+		country: payload.d.Country default ""
+	}
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<flow-ref doc:name="Log Response" name="log-response-subflow"/>
+	</flow>
+
+</mule>

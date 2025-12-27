@@ -1,0 +1,23 @@
+http:
+  port: "8081"
+  host: "0.0.0.0"
+  basePath: "/api"
+api:
+  id: "salesforce-sap-api"
+  version: "v1"
+sap:
+  s4:
+    basePath: "/sap/opu/odata/sap"
+    timeout: "60000"
+    retry:
+      maxAttempts: "3"
+      interval: "5000"
+cache:
+  pricing:
+    ttl: "3600"
+    maxEntries: "1000"
+  inventory:
+    ttl: "1800"
+    maxEntries: "500"
+logging:
+  level: "INFO"

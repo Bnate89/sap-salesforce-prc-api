@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+	xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+		http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+
+	<munit:config name="customers-test-suite" doc:name="MUnit Configuration"/>
+
+	<!-- Test POST Customer Success -->
+	<munit:test name="test-post-customer-success" doc:name="Test POST Customer Success" description="Test successful customer creation">
+		<munit:behavior>
+			<!-- Mock SAP HTTP POST for CSRF token fetch -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock CSRF Token Fetch">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="Fetch CSRF Token"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value="#['']"/>
+					<munit-tools:attributes value="#[{headers: {'x-csrf-token': 'test-token'}}]"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+			<!-- Mock SAP HTTP POST for customer creation -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock SAP Customer Create">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="SAP HTTP POST"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value='#[{"d": {"BusinessPartner": "CUST001"}}]' mediaType="application/json"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set Customer Request">
+				<munit:payload value='#[{"name": "Test Customer", "email": "test@example.com", "phone": "1234567890", "billingAddress": {"street": "123 Main St", "city": "New York", "state": "NY", "postalCode": "10001", "country": "US"}}]' mediaType="application/json"/>
+				<munit:attributes value="#[{method: 'POST', requestPath: '/api/customers'}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call POST Customers Flow" name="post:\customers:application\json:salesforce-sap-api-config"/>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Customer ID" expression="#[payload.customerId]" is="#[MunitTools::equalTo('CUST001')]"/>
+			<munit-tools:assert-that doc:name="Assert Name" expression="#[payload.name]" is="#[MunitTools::equalTo('Test Customer')]"/>
+			<munit-tools:assert-equals doc:name="Assert HTTP Status 201" actual="#[vars.httpStatus]" expected="#[201]"/>
+		</munit:validation>
+	</munit:test>
+
+	<!-- Test GET Customer Success -->
+	<munit:test name="test-get-customer-success" doc:name="Test GET Customer Success" description="Test successful customer retrieval">
+		<munit:behavior>
+			<!-- Mock SAP HTTP GET -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock SAP Customer Get">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="SAP HTTP GET"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value='#[{"d": {"BusinessPartner": "CUST001", "BusinessPartnerFullName": "Test Customer", "EmailAddress": "test@example.com", "PhoneNumber": "1234567890", "StreetName": "123 Main St", "CityName": "New York", "Region": "NY", "PostalCode": "10001", "Country": "US"}}]' mediaType="application/json"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set GET Request">
+				<munit:payload value="#['']"/>
+				<munit:attributes value="#[{method: 'GET', requestPath: '/api/customers', queryParams: {customerId: 'CUST001'}}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call GET Customers Flow" name="get:\customers:salesforce-sap-api-config"/>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Customer ID" expression="#[payload.customerId]" is="#[MunitTools::equalTo('CUST001')]"/>
+			<munit-tools:assert-that doc:name="Assert Name" expression="#[payload.name]" is="#[MunitTools::equalTo('Test Customer')]"/>
+		</munit:validation>
+	</munit:test>
+
+	<!-- Test Customer Not Found -->
+	<munit:test name="test-get-customer-not-found" doc:name="Test GET Customer Not Found" description="Test customer not found scenario" expectedErrorType="HTTP:NOT_FOUND">
+		<munit:behavior>
+			<!-- Mock SAP HTTP GET returning 404 -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock SAP Customer Not Found">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="SAP HTTP GET"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="HTTP:NOT_FOUND"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set GET Request">
+				<munit:payload value="#['']"/>
+				<munit:attributes value="#[{method: 'GET', requestPath: '/api/customers', queryParams: {customerId: 'INVALID'}}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call GET Customers Flow" name="get:\customers:salesforce-sap-api-config"/>
+		</munit:execution>
+	</munit:test>
+
+</mule>

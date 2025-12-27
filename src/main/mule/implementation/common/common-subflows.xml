@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+		http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+		http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+
+	<!-- SAP HTTP GET Subflow -->
+	<sub-flow name="sap-http-get-subflow" doc:name="SAP HTTP GET Subflow">
+		<logger doc:name="Log SAP GET Request" level="INFO" message="#['SAP GET Request - Path: ' ++ vars.sapPath]"/>
+		<http:request doc:name="SAP HTTP GET" config-ref="SAP_HTTP_Request_Config" method="GET" path="#[vars.sapPath]">
+			<http:headers><![CDATA[#[{
+				"Accept": "application/json",
+				"Content-Type": "application/json",
+				"x-correlation-id": correlationId
+			}]]]></http:headers>
+		</http:request>
+		<logger doc:name="Log SAP GET Response" level="INFO" message="#['SAP GET Response - Status: ' ++ attributes.statusCode]"/>
+	</sub-flow>
+
+	<!-- SAP HTTP POST Subflow with CSRF Token Handling -->
+	<sub-flow name="sap-http-post-subflow" doc:name="SAP HTTP POST Subflow">
+		<logger doc:name="Log SAP POST Request" level="INFO" message="#['SAP POST Request - Path: ' ++ vars.sapPath]"/>
+		
+		<!-- Store the request payload -->
+		<set-variable doc:name="Store Request Payload" variableName="requestPayload" value="#[payload]"/>
+		
+		<!-- Fetch CSRF Token -->
+		<http:request doc:name="Fetch CSRF Token" config-ref="SAP_HTTP_Request_Config" method="GET" path="${sap.s4.basePath}/$metadata" target="csrfResponse" targetValue="#[attributes]">
+			<http:headers><![CDATA[#[{
+				"x-csrf-token": "Fetch",
+				"Accept": "application/json"
+			}]]]></http:headers>
+		</http:request>
+		
+		<!-- Extract CSRF Token from response headers -->
+		<set-variable doc:name="Set CSRF Token" variableName="csrfToken" value="#[vars.csrfResponse.headers.'x-csrf-token' default '']"/>
+		
+		<!-- Restore request payload -->
+		<set-payload doc:name="Restore Request Payload" value="#[vars.requestPayload]"/>
+		
+		<!-- Make POST request with CSRF Token -->
+		<http:request doc:name="SAP HTTP POST" config-ref="SAP_HTTP_Request_Config" method="POST" path="#[vars.sapPath]">
+			<http:headers><![CDATA[#[{
+				"Accept": "application/json",
+				"Content-Type": "application/json",
+				"x-csrf-token": vars.csrfToken,
+				"x-correlation-id": correlationId
+			}]]]></http:headers>
+		</http:request>
+		<logger doc:name="Log SAP POST Response" level="INFO" message="#['SAP POST Response - Status: ' ++ attributes.statusCode]"/>
+	</sub-flow>
+
+	<!-- Cache Lookup Subflow -->
+	<sub-flow name="cache-lookup-subflow" doc:name="Cache Lookup Subflow">
+		<os:retrieve doc:name="Retrieve from Cache" key="#[vars.cacheKey]" objectStore="#[vars.objectStoreName]" target="cachedValue">
+			<os:default-value><![CDATA[#[null]]]></os:default-value>
+		</os:retrieve>
+		<choice doc:name="Cache Hit?">
+			<when expression="#[vars.cachedValue != null]">
+				<set-variable doc:name="Set Cache Hit" variableName="cacheHit" value="#[true]"/>
+				<logger doc:name="Log Cache Hit" level="INFO" message="#['Cache hit for key: ' ++ vars.cacheKey]"/>
+			</when>
+			<otherwise>
+				<set-variable doc:name="Set Cache Miss" variableName="cacheHit" value="#[false]"/>
+				<logger doc:name="Log Cache Miss" level="INFO" message="#['Cache miss for key: ' ++ vars.cacheKey]"/>
+			</otherwise>
+		</choice>
+	</sub-flow>
+
+	<!-- Cache Store Subflow -->
+	<sub-flow name="cache-store-subflow" doc:name="Cache Store Subflow">
+		<os:store doc:name="Store in Cache" key="#[vars.cacheKey]" objectStore="#[vars.objectStoreName]">
+			<os:value><![CDATA[#[payload]]]></os:value>
+		</os:store>
+		<logger doc:name="Log Cache Store" level="INFO" message="#['Stored in cache with key: ' ++ vars.cacheKey]"/>
+	</sub-flow>
+
+	<!-- Log Request Subflow -->
+	<sub-flow name="log-request-subflow" doc:name="Log Request Subflow">
+		<logger doc:name="Log Request" level="INFO" message="#[output application/json --- { 'type': 'REQUEST', correlationId: correlationId, timestamp: now(), method: attributes.method default 'N/A', path: attributes.requestPath default 'N/A' }]"/>
+	</sub-flow>
+
+	<!-- Log Response Subflow -->
+	<sub-flow name="log-response-subflow" doc:name="Log Response Subflow">
+		<logger doc:name="Log Response" level="INFO" message="#[output application/json --- { 'type': 'RESPONSE', correlationId: correlationId, timestamp: now(), httpStatus: vars.httpStatus default 200 }]"/>
+	</sub-flow>
+
+</mule>

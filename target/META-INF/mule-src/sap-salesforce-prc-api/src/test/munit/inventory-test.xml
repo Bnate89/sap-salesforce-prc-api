@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+	xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+		http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+		http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+
+	<munit:config name="inventory-test-suite" doc:name="MUnit Configuration"/>
+
+	<!-- Test Inventory Success with Plant Parameter -->
+	<munit:test name="test-get-inventory-with-plant" doc:name="Test GET Inventory with Plant" description="Test inventory retrieval with plant parameter">
+		<munit:behavior>
+			<!-- Mock Object Store Retrieve (cache miss) -->
+			<munit-tools:mock-when processor="os:retrieve" doc:name="Mock Cache Miss">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="objectStore" whereValue="Inventory_Cache_Object_Store"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value="#[null]"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+			<!-- Mock SAP HTTP GET -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock SAP Inventory">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="SAP HTTP GET"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value='#[{"d": {"results": [{"MatlWrhsStkQtyInMatlBaseUnit": "500", "MaterialBaseUnit": "EA"}]}}]' mediaType="application/json"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+			<!-- Mock Object Store Store -->
+			<munit-tools:mock-when processor="os:store" doc:name="Mock Cache Store">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="objectStore" whereValue="Inventory_Cache_Object_Store"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return/>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set Inventory Request">
+				<munit:payload value="#['']"/>
+				<munit:attributes value="#[{method: 'GET', requestPath: '/api/inventory', queryParams: {productId: 'PROD001', plant: '2000'}}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call GET Inventory Flow" name="get:\inventory:salesforce-sap-api-config"/>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Product ID" expression="#[payload.productId]" is="#[MunitTools::equalTo('PROD001')]"/>
+			<munit-tools:assert-that doc:name="Assert Plant" expression="#[payload.plant]" is="#[MunitTools::equalTo('2000')]"/>
+			<munit-tools:assert-that doc:name="Assert Quantity" expression="#[payload.availableQuantity]" is="#[MunitTools::equalTo(500)]"/>
+			<munit-tools:assert-that doc:name="Assert UoM" expression="#[payload.unitOfMeasure]" is="#[MunitTools::equalTo('EA')]"/>
+		</munit:validation>
+	</munit:test>
+
+	<!-- Test Inventory Success without Plant Parameter -->
+	<munit:test name="test-get-inventory-without-plant" doc:name="Test GET Inventory without Plant" description="Test inventory retrieval with default plant">
+		<munit:behavior>
+			<!-- Mock Object Store Retrieve (cache miss) -->
+			<munit-tools:mock-when processor="os:retrieve" doc:name="Mock Cache Miss">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="objectStore" whereValue="Inventory_Cache_Object_Store"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value="#[null]"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+			<!-- Mock SAP HTTP GET -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock SAP Inventory">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="SAP HTTP GET"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value='#[{"d": {"results": [{"MatlWrhsStkQtyInMatlBaseUnit": "250", "MaterialBaseUnit": "PC"}]}}]' mediaType="application/json"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+			<!-- Mock Object Store Store -->
+			<munit-tools:mock-when processor="os:store" doc:name="Mock Cache Store">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="objectStore" whereValue="Inventory_Cache_Object_Store"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return/>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set Inventory Request">
+				<munit:payload value="#['']"/>
+				<munit:attributes value="#[{method: 'GET', requestPath: '/api/inventory', queryParams: {productId: 'PROD002'}}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call GET Inventory Flow" name="get:\inventory:salesforce-sap-api-config"/>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Product ID" expression="#[payload.productId]" is="#[MunitTools::equalTo('PROD002')]"/>
+			<munit-tools:assert-that doc:name="Assert Default Plant" expression="#[payload.plant]" is="#[MunitTools::equalTo('1000')]"/>
+			<munit-tools:assert-that doc:name="Assert Quantity" expression="#[payload.availableQuantity]" is="#[MunitTools::equalTo(250)]"/>
+		</munit:validation>
+	</munit:test>
+
+	<!-- Test Inventory Not Found -->
+	<munit:test name="test-get-inventory-not-found" doc:name="Test GET Inventory Not Found" description="Test inventory not found scenario">
+		<munit:behavior>
+			<!-- Mock Object Store Retrieve (cache miss) -->
+			<munit-tools:mock-when processor="os:retrieve" doc:name="Mock Cache Miss">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="objectStore" whereValue="Inventory_Cache_Object_Store"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value="#[null]"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+			<!-- Mock SAP HTTP GET with empty results -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock SAP Empty">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="SAP HTTP GET"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value='#[{"d": {"results": []}}]' mediaType="application/json"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+			<!-- Mock Object Store Store -->
+			<munit-tools:mock-when processor="os:store" doc:name="Mock Cache Store">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="objectStore" whereValue="Inventory_Cache_Object_Store"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return/>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set Inventory Request">
+				<munit:payload value="#['']"/>
+				<munit:attributes value="#[{method: 'GET', requestPath: '/api/inventory', queryParams: {productId: 'INVALID'}}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call GET Inventory Flow" name="get:\inventory:salesforce-sap-api-config"/>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Zero Quantity" expression="#[payload.availableQuantity]" is="#[MunitTools::equalTo(0)]"/>
+		</munit:validation>
+	</munit:test>
+
+</mule>

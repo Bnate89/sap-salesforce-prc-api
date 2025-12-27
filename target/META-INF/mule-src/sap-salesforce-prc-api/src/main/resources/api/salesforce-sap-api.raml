@@ -1,0 +1,188 @@
+#%RAML 1.0
+title: Salesforce SAP Integration API
+version: v1
+baseUri: https://api.company.com/salesforce-sap/{version}
+mediaType: application/json
+
+description: |
+  API enabling real-time integration between Salesforce Sales Cloud / CPQ
+  and SAP S/4HANA for pricing, inventory, orders, customers, and purchase history.
+
+protocols:
+  - HTTPS
+
+securitySchemes:
+  client-id-auth:
+    type: x-client-id-enforcement
+    describedBy:
+      headers:
+        client-id:
+          type: string
+          required: true
+        client-secret:
+          type: string
+          required: true
+
+securedBy:
+  - client-id-auth
+
+types:
+  Address:
+    properties:
+      street: string
+      city: string
+      state?: string
+      postalCode?: string
+      country: string
+
+  Customer:
+    properties:
+      customerId?: string
+      salesforceAccountId?: string
+      name: string
+      email?: string
+      phone?: string
+      billingAddress?: Address
+      shippingAddress?: Address
+
+  PricingResponse:
+    properties:
+      productId: string
+      currency: string
+      listPrice: number
+      discount?: number
+      netPrice: number
+
+  InventoryResponse:
+    properties:
+      productId: string
+      plant: string
+      availableQuantity: number
+      unitOfMeasure: string
+
+  OrderItem:
+    properties:
+      productId: string
+      quantity: number
+      unitPrice: number
+
+  OrderRequest:
+    properties:
+      salesforceQuoteId: string
+      customerId: string
+      orderDate: datetime
+      currency: string
+      items: OrderItem[]
+
+  OrderResponse:
+    properties:
+      sapOrderId: string
+      status: string
+      orderDate: datetime
+      totalAmount: number
+
+  OrderStatus:
+    properties:
+      sapOrderId: string
+      status: string
+      lastUpdated: datetime
+
+  PurchaseHistory:
+    properties:
+      customerId: string
+      orders: OrderResponse[]
+
+  ErrorResponse:
+    properties:
+      errorCode: string
+      message: string
+      timestamp: datetime
+
+/customers:
+  post:
+    body:
+      application/json:
+        type: Customer
+    responses:
+      201:
+        body:
+          application/json:
+            type: Customer
+  get:
+    queryParameters:
+      customerId:
+        required: true
+        type: string
+    responses:
+      200:
+        body:
+          application/json:
+            type: Customer
+
+/pricing:
+  get:
+    queryParameters:
+      productId:
+        required: true
+      customerId:
+        required: true
+      currency:
+        required: true
+    responses:
+      200:
+        body:
+          application/json:
+            type: PricingResponse
+
+/inventory:
+  get:
+    queryParameters:
+      productId:
+        required: true
+      plant:
+        required: false
+    responses:
+      200:
+        body:
+          application/json:
+            type: InventoryResponse
+
+/orders:
+  post:
+    body:
+      application/json:
+        type: OrderRequest
+    responses:
+      201:
+        body:
+          application/json:
+            type: OrderResponse
+  get:
+    queryParameters:
+      sapOrderId:
+        required: true
+    responses:
+      200:
+        body:
+          application/json:
+            type: OrderStatus
+
+/purchase-history:
+  get:
+    queryParameters:
+      customerId:
+        required: true
+    responses:
+      200:
+        body:
+          application/json:
+            type: PurchaseHistory
+
+/health:
+  get:
+    responses:
+      200:
+        body:
+          application/json:
+            example:
+              status: UP

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+	xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+
+	<munit:config name="health-test-suite" doc:name="MUnit Configuration"/>
+
+	<!-- Test Health Endpoint -->
+	<munit:test name="test-health-endpoint" doc:name="Test Health Endpoint" description="Test health endpoint returns 200 with status UP">
+		<munit:execution>
+			<munit:set-event doc:name="Set Health Request">
+				<munit:payload value="#['']"/>
+				<munit:attributes value="#[{method: 'GET', requestPath: '/api/health'}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call Health Flow" name="get:\health:salesforce-sap-api-config"/>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Status UP" expression="#[payload.status]" is="#[MunitTools::equalTo('UP')]"/>
+		</munit:validation>
+	</munit:test>
+
+</mule>

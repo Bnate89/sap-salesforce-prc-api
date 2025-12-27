@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+	<!-- POST /orders - Create Sales Order in SAP S/4HANA -->
+	<flow name="post:\orders:application\json:salesforce-sap-api-config" doc:name="POST /orders">
+		<flow-ref doc:name="Log Request" name="log-request-subflow"/>
+		<set-variable doc:name="Set Order Request" variableName="orderRequest" value="#[payload]"/>
+		
+		<!-- Transform Salesforce quote format to SAP order format -->
+		<ee:transform doc:name="Transform - SAP Order Request">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	SalesOrderType: "OR",
+	SalesOrganization: "1000",
+	DistributionChannel: "10",
+	OrganizationDivision: "00",
+	SoldToParty: vars.orderRequest.customerId,
+	PurchaseOrderByCustomer: vars.orderRequest.salesforceQuoteId,
+	TransactionCurrency: vars.orderRequest.currency,
+	RequestedDeliveryDate: vars.orderRequest.orderDate as String {format: "yyyy-MM-dd"},
+	to_Item: {
+		results: vars.orderRequest.items map ((item, index) -> {
+			SalesOrderItem: ((index + 1) * 10) as String {format: "000000"},
+			Material: item.productId,
+			RequestedQuantity: item.quantity as String,
+			RequestedQuantityUnit: "EA",
+			NetPriceAmount: item.unitPrice as String
+		})
+	}
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		
+		<set-variable doc:name="Set SAP Path" variableName="sapPath" value="${sap.s4.basePath}/API_SALES_ORDER_SRV/A_SalesOrder"/>
+		<flow-ref doc:name="SAP HTTP POST" name="sap-http-post-subflow"/>
+		
+		<!-- Transform SAP response -->
+		<ee:transform doc:name="Transform - Order Response">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	sapOrderId: payload.d.SalesOrder default "",
+	status: payload.d.OverallSDProcessStatus default "CREATED",
+	orderDate: vars.orderRequest.orderDate,
+	totalAmount: payload.d.TotalNetAmount as Number default 0
+}]]></ee:set-payload>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="httpStatus"><![CDATA[201]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<flow-ref doc:name="Log Response" name="log-response-subflow"/>
+	</flow>
+
+	<!-- GET /orders - Get Order Status from SAP -->
+	<flow name="get:\orders:salesforce-sap-api-config" doc:name="GET /orders">
+		<set-variable doc:name="Set sapOrderId" variableName="sapOrderId" value="#[attributes.queryParams.sapOrderId]"/>
+		<flow-ref doc:name="Log Request" name="log-request-subflow"/>
+		
+		<set-variable doc:name="Set SAP Path" variableName="sapPath" value="#['${sap.s4.basePath}/API_SALES_ORDER_SRV/A_SalesOrder(' ++ &quot;'&quot; ++ vars.sapOrderId ++ &quot;'&quot; ++ ')']"/>
+		<flow-ref doc:name="SAP HTTP GET" name="sap-http-get-subflow"/>
+		
+		<!-- Transform SAP response -->
+		<ee:transform doc:name="Transform - Order Status Response">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	sapOrderId: payload.d.SalesOrder default vars.sapOrderId,
+	status: payload.d.OverallSDProcessStatus default "UNKNOWN",
+	lastUpdated: payload.d.LastChangeDateTime default now()
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<flow-ref doc:name="Log Response" name="log-response-subflow"/>
+	</flow>
+
+</mule>

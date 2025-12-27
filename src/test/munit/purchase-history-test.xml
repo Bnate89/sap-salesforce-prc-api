@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+	xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+		http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+
+	<munit:config name="purchase-history-test-suite" doc:name="MUnit Configuration"/>
+
+	<!-- Test Purchase History Success -->
+	<munit:test name="test-get-purchase-history-success" doc:name="Test GET Purchase History Success" description="Test successful purchase history retrieval">
+		<munit:behavior>
+			<!-- Mock SAP HTTP GET -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock SAP Purchase History">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="SAP HTTP GET"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value='#[{"d": {"results": [{"SalesOrder": "SO001", "OverallSDProcessStatus": "COMPLETED", "CreationDate": "/Date(1705320600000)/", "TotalNetAmount": "1500.00"}, {"SalesOrder": "SO002", "OverallSDProcessStatus": "IN_PROGRESS", "CreationDate": "/Date(1705407000000)/", "TotalNetAmount": "2500.00"}]}}]' mediaType="application/json"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set Purchase History Request">
+				<munit:payload value="#['']"/>
+				<munit:attributes value="#[{method: 'GET', requestPath: '/api/purchase-history', queryParams: {customerId: 'CUST001'}}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call GET Purchase History Flow" name="get:\purchase-history:salesforce-sap-api-config"/>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Customer ID" expression="#[payload.customerId]" is="#[MunitTools::equalTo('CUST001')]"/>
+			<munit-tools:assert-that doc:name="Assert Orders Count" expression="#[sizeOf(payload.orders)]" is="#[MunitTools::equalTo(2)]"/>
+			<munit-tools:assert-that doc:name="Assert First Order ID" expression="#[payload.orders[0].sapOrderId]" is="#[MunitTools::equalTo('SO001')]"/>
+		</munit:validation>
+	</munit:test>
+
+	<!-- Test Empty Purchase History -->
+	<munit:test name="test-get-purchase-history-empty" doc:name="Test GET Purchase History Empty" description="Test empty purchase history">
+		<munit:behavior>
+			<!-- Mock SAP HTTP GET with empty results -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock SAP Empty History">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="SAP HTTP GET"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value='#[{"d": {"results": []}}]' mediaType="application/json"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set Purchase History Request">
+				<munit:payload value="#['']"/>
+				<munit:attributes value="#[{method: 'GET', requestPath: '/api/purchase-history', queryParams: {customerId: 'NEWCUST'}}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call GET Purchase History Flow" name="get:\purchase-history:salesforce-sap-api-config"/>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Customer ID" expression="#[payload.customerId]" is="#[MunitTools::equalTo('NEWCUST')]"/>
+			<munit-tools:assert-that doc:name="Assert Empty Orders" expression="#[sizeOf(payload.orders)]" is="#[MunitTools::equalTo(0)]"/>
+		</munit:validation>
+	</munit:test>
+
+</mule>

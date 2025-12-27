@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+		http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+
+	<!-- GET /pricing - Get Real-time Pricing from SAP -->
+	<flow name="get:\pricing:salesforce-sap-api-config" doc:name="GET /pricing">
+		<set-variable doc:name="Set productId" variableName="productId" value="#[attributes.queryParams.productId]"/>
+		<set-variable doc:name="Set customerId" variableName="customerId" value="#[attributes.queryParams.customerId]"/>
+		<set-variable doc:name="Set currency" variableName="currency" value="#[attributes.queryParams.currency]"/>
+		<flow-ref doc:name="Log Request" name="log-request-subflow"/>
+		
+		<!-- Generate cache key -->
+		<set-variable doc:name="Set Cache Key" variableName="cacheKey" value="#[vars.productId ++ '_' ++ vars.customerId ++ '_' ++ vars.currency]"/>
+		
+		<!-- Try to retrieve from cache -->
+		<os:retrieve doc:name="Retrieve from Cache" key="#[vars.cacheKey]" objectStore="Pricing_Cache_Object_Store" target="cachedPricing">
+			<os:default-value><![CDATA[#[null]]]></os:default-value>
+		</os:retrieve>
+		
+		<choice doc:name="Cache Hit?">
+			<when expression="#[vars.cachedPricing != null]">
+				<logger doc:name="Log Cache Hit" level="INFO" message="#['Cache hit for pricing key: ' ++ vars.cacheKey]"/>
+				<set-payload doc:name="Set Cached Payload" value="#[vars.cachedPricing]"/>
+			</when>
+			<otherwise>
+				<logger doc:name="Log Cache Miss" level="INFO" message="#['Cache miss for pricing key: ' ++ vars.cacheKey]"/>
+				
+				<!-- Call SAP with retry -->
+				<until-successful doc:name="Until Successful - SAP Pricing" maxRetries="${sap.s4.retry.maxAttempts}" millisBetweenRetries="${sap.s4.retry.interval}">
+					<set-variable doc:name="Set SAP Path" variableName="sapPath" value="#['${sap.s4.basePath}/API_PRODUCT_SRV/A_ProductValuation(Product=' ++ &quot;'&quot; ++ vars.productId ++ &quot;'&quot; ++ ',ValuationArea=' ++ &quot;'&quot; ++ '1000' ++ &quot;'&quot; ++ ')']"/>
+					<flow-ref doc:name="SAP HTTP GET" name="sap-http-get-subflow"/>
+				</until-successful>
+				
+				<!-- Transform SAP response -->
+				<ee:transform doc:name="Transform - Pricing Response">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	productId: vars.productId,
+	currency: vars.currency,
+	listPrice: payload.d.StandardPrice as Number default 0,
+	discount: payload.d.Discount as Number default 0,
+	netPrice: (payload.d.StandardPrice as Number default 0) - (payload.d.Discount as Number default 0)
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				
+				<!-- Store in cache -->
+				<os:store doc:name="Store in Cache" key="#[vars.cacheKey]" objectStore="Pricing_Cache_Object_Store">
+					<os:value><![CDATA[#[payload]]]></os:value>
+				</os:store>
+			</otherwise>
+		</choice>
+		
+		<flow-ref doc:name="Log Response" name="log-response-subflow"/>
+	</flow>
+
+</mule>

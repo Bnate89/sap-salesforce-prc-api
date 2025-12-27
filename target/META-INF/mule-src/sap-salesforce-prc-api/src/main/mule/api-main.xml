@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+		http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd
+		http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+	<!-- Main API Flow -->
+	<flow name="salesforce-sap-api-main" doc:name="Salesforce SAP API Main Flow">
+		<http:listener doc:name="HTTP Listener" config-ref="HTTP_Listener_Config" path="${http.basePath}/*">
+			<http:response statusCode="#[vars.httpStatus default 200]">
+				<http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+			</http:response>
+			<http:error-response statusCode="#[vars.httpStatus default 500]">
+				<http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+			</http:error-response>
+		</http:listener>
+		<flow-ref doc:name="Log Request" name="log-request-subflow"/>
+		<apikit:router doc:name="APIKit Router" config-ref="salesforce-sap-api-config"/>
+		<flow-ref doc:name="Log Response" name="log-response-subflow"/>
+		<error-handler ref="global-error-handler"/>
+	</flow>
+
+	<!-- API Console Flow -->
+
+	<!-- Health Check Flow -->
+	<flow name="get:\health:salesforce-sap-api-config" doc:name="GET /health">
+		<ee:transform doc:name="Transform - Health Response">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	status: "UP"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+
+	<!-- Purchase History Flow -->
+	<flow name="get:\purchase-history:salesforce-sap-api-config" doc:name="GET /purchase-history">
+		<set-variable doc:name="Set customerId" variableName="customerId" value="#[attributes.queryParams.customerId]"/>
+		<flow-ref doc:name="Log Request" name="log-request-subflow"/>
+		<set-variable doc:name="Set SAP Path" variableName="sapPath" value="#['${sap.s4.basePath}/API_SALES_ORDER_SRV/A_SalesOrder?\$filter=SoldToParty eq ' ++ &quot;'&quot; ++ vars.customerId ++ &quot;'&quot;]"/>
+		<flow-ref doc:name="SAP HTTP GET" name="sap-http-get-subflow"/>
+		<ee:transform doc:name="Transform - Purchase History Response">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	customerId: vars.customerId,
+	orders: if (payload.d.results?) 
+		(payload.d.results map {
+			sapOrderId: $.SalesOrder default "",
+			status: $.OverallSDProcessStatus default "UNKNOWN",
+			orderDate: $.CreationDate default now(),
+			totalAmount: $.TotalNetAmount as Number default 0
+		})
+	else []
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<flow-ref doc:name="Log Response" name="log-response-subflow"/>
+	</flow>
+
+</mule>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+		http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+
+	<!-- GET /inventory - Get Inventory Availability from SAP -->
+	<flow name="get:\inventory:salesforce-sap-api-config" doc:name="GET /inventory">
+		<set-variable doc:name="Set productId" variableName="productId" value="#[attributes.queryParams.productId]"/>
+		<set-variable doc:name="Set plant" variableName="plant" value="#[attributes.queryParams.plant default '1000']"/>
+		<flow-ref doc:name="Log Request" name="log-request-subflow"/>
+		
+		<!-- Generate cache key -->
+		<set-variable doc:name="Set Cache Key" variableName="cacheKey" value="#[vars.productId ++ '_' ++ vars.plant]"/>
+		
+		<!-- Try to retrieve from cache -->
+		<os:retrieve doc:name="Retrieve from Cache" key="#[vars.cacheKey]" objectStore="Inventory_Cache_Object_Store" target="cachedInventory">
+			<os:default-value><![CDATA[#[null]]]></os:default-value>
+		</os:retrieve>
+		
+		<choice doc:name="Cache Hit?">
+			<when expression="#[vars.cachedInventory != null]">
+				<logger doc:name="Log Cache Hit" level="INFO" message="#['Cache hit for inventory key: ' ++ vars.cacheKey]"/>
+				<set-payload doc:name="Set Cached Payload" value="#[vars.cachedInventory]"/>
+			</when>
+			<otherwise>
+				<logger doc:name="Log Cache Miss" level="INFO" message="#['Cache miss for inventory key: ' ++ vars.cacheKey]"/>
+				
+				<!-- Call SAP -->
+				<set-variable doc:name="Set SAP Path" variableName="sapPath" value="#['${sap.s4.basePath}/API_MATERIAL_STOCK_SRV/A_MatlStkInAcctMod?\$filter=Material eq ' ++ &quot;'&quot; ++ vars.productId ++ &quot;'&quot; ++ ' and Plant eq ' ++ &quot;'&quot; ++ vars.plant ++ &quot;'&quot;]"/>
+				<flow-ref doc:name="SAP HTTP GET" name="sap-http-get-subflow"/>
+				
+				<!-- Transform SAP response -->
+				<ee:transform doc:name="Transform - Inventory Response">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+var stockData = payload.d.results[0] default {}
+---
+{
+	productId: vars.productId,
+	plant: vars.plant,
+	availableQuantity: stockData.MatlWrhsStkQtyInMatlBaseUnit as Number default 0,
+	unitOfMeasure: stockData.MaterialBaseUnit default "EA"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				
+				<!-- Store in cache -->
+				<os:store doc:name="Store in Cache" key="#[vars.cacheKey]" objectStore="Inventory_Cache_Object_Store">
+					<os:value><![CDATA[#[payload]]]></os:value>
+				</os:store>
+			</otherwise>
+		</choice>
+		
+		<flow-ref doc:name="Log Response" name="log-response-subflow"/>
+	</flow>
+
+</mule>

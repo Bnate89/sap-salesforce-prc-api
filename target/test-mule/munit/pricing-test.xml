@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+	xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+		http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+		http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+
+	<munit:config name="pricing-test-suite" doc:name="MUnit Configuration"/>
+
+	<!-- Test Pricing Success -->
+	<munit:test name="test-get-pricing-success" doc:name="Test GET Pricing Success" description="Test successful pricing retrieval from SAP">
+		<munit:behavior>
+			<!-- Mock Object Store Retrieve (cache miss) -->
+			<munit-tools:mock-when processor="os:retrieve" doc:name="Mock Cache Miss">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="objectStore" whereValue="Pricing_Cache_Object_Store"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value="#[null]"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+			<!-- Mock SAP HTTP GET -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock SAP Pricing">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="SAP HTTP GET"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value='#[{"d": {"StandardPrice": "100.00", "Discount": "10.00"}}]' mediaType="application/json"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+			<!-- Mock Object Store Store -->
+			<munit-tools:mock-when processor="os:store" doc:name="Mock Cache Store">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="objectStore" whereValue="Pricing_Cache_Object_Store"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return/>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set Pricing Request">
+				<munit:payload value="#['']"/>
+				<munit:attributes value="#[{method: 'GET', requestPath: '/api/pricing', queryParams: {productId: 'PROD001', customerId: 'CUST001', currency: 'USD'}}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call GET Pricing Flow" name="get:\pricing:salesforce-sap-api-config"/>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Product ID" expression="#[payload.productId]" is="#[MunitTools::equalTo('PROD001')]"/>
+			<munit-tools:assert-that doc:name="Assert Currency" expression="#[payload.currency]" is="#[MunitTools::equalTo('USD')]"/>
+			<munit-tools:assert-that doc:name="Assert List Price" expression="#[payload.listPrice]" is="#[MunitTools::equalTo(100)]"/>
+			<munit-tools:assert-that doc:name="Assert Net Price" expression="#[payload.netPrice]" is="#[MunitTools::equalTo(90)]"/>
+		</munit:validation>
+	</munit:test>
+
+	<!-- Test Pricing Cache Hit -->
+	<munit:test name="test-get-pricing-cache-hit" doc:name="Test GET Pricing Cache Hit" description="Test pricing retrieval from cache">
+		<munit:behavior>
+			<!-- Mock Object Store Retrieve (cache hit) -->
+			<munit-tools:mock-when processor="os:retrieve" doc:name="Mock Cache Hit">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="objectStore" whereValue="Pricing_Cache_Object_Store"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value='#[{"productId": "PROD001", "currency": "USD", "listPrice": 100, "discount": 10, "netPrice": 90}]' mediaType="application/json"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set Pricing Request">
+				<munit:payload value="#['']"/>
+				<munit:attributes value="#[{method: 'GET', requestPath: '/api/pricing', queryParams: {productId: 'PROD001', customerId: 'CUST001', currency: 'USD'}}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call GET Pricing Flow" name="get:\pricing:salesforce-sap-api-config"/>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert Product ID" expression="#[payload.productId]" is="#[MunitTools::equalTo('PROD001')]"/>
+			<munit-tools:assert-that doc:name="Assert Net Price" expression="#[payload.netPrice]" is="#[MunitTools::equalTo(90)]"/>
+		</munit:validation>
+	</munit:test>
+
+	<!-- Test Pricing SAP Timeout -->
+	<munit:test name="test-get-pricing-timeout" doc:name="Test GET Pricing Timeout" description="Test SAP timeout handling" expectedErrorType="HTTP:TIMEOUT">
+		<munit:behavior>
+			<!-- Mock Object Store Retrieve (cache miss) -->
+			<munit-tools:mock-when processor="os:retrieve" doc:name="Mock Cache Miss">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="objectStore" whereValue="Pricing_Cache_Object_Store"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value="#[null]"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+			<!-- Mock SAP HTTP GET with timeout -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock SAP Timeout">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="SAP HTTP GET"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="HTTP:TIMEOUT"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set Pricing Request">
+				<munit:payload value="#['']"/>
+				<munit:attributes value="#[{method: 'GET', requestPath: '/api/pricing', queryParams: {productId: 'PROD001', customerId: 'CUST001', currency: 'USD'}}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call GET Pricing Flow" name="get:\pricing:salesforce-sap-api-config"/>
+		</munit:execution>
+	</munit:test>
+
+</mule>

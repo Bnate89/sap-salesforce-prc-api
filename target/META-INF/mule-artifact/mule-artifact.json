@@ -1,0 +1,61 @@
+{
+  "configs": [
+    "health-test.xml",
+    "purchase-history-test.xml",
+    "error-handler-test.xml",
+    "api-main.xml",
+    "implementation/common/common-subflows.xml",
+    "global-error-handler.xml",
+    "customers-test.xml",
+    "inventory-test.xml",
+    "pricing-test.xml",
+    "global.xml",
+    "implementation/customers/pricing-impl.xml",
+    "implementation/customers/inventory-impl.xml",
+    "implementation/customers/orders-impl.xml",
+    "implementation/customers/customers-impl.xml",
+    "orders-test.xml"
+  ],
+  "secureProperties": [
+    "sap.username",
+    "sap.password",
+    "sap.truststore.password"
+  ],
+  "supportedJavaVersions": [],
+  "redeploymentEnabled": true,
+  "name": "com.mycompany:sap-salesforce-prc-api:1.0.0-SNAPSHOT",
+  "minMuleVersion": "4.9.3",
+  "requiredProduct": "MULE_EE",
+  "classLoaderModelLoaderDescriptor": {
+    "id": "mule",
+    "attributes": {
+      "exportedResources": [
+        "api/salesforce-sap-api.raml",
+        "api-main.xml",
+        "config/application-dev.yaml",
+        "config/application-prod.yaml",
+        "config/application.yaml",
+        "config/secure-properties-dev.yaml",
+        "config/secure-properties.yaml",
+        "global-error-handler.xml",
+        "global.xml",
+        "implementation/common/common-subflows.xml",
+        "implementation/customers/customers-impl.xml",
+        "implementation/customers/inventory-impl.xml",
+        "implementation/customers/orders-impl.xml",
+        "implementation/customers/pricing-impl.xml",
+        "log4j2.xml",
+        "log4j2-test.xml"
+      ],
+      "includeTestDependencies": "true",
+      "exportedPackages": []
+    }
+  },
+  "bundleDescriptorLoader": {
+    "id": "mule",
+    "attributes": {}
+  },
+  "javaSpecificationVersions": [
+    "17"
+  ]
+}

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:tls="http://www.mulesoft.org/schema/mule/tls"
+	xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+	xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway"
+	xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+		http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd
+		http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd
+		http://www.mulesoft.org/schema/mule/api-gateway http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd
+		http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd
+		http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+
+	<!-- Global Properties -->
+	<global-property doc:name="Global Property - mule.env" name="mule.env" value="dev"/>
+	<global-property doc:name="Global Property - secure.key" name="secure.key" value="mule4SecureKey16"/>
+
+	<!-- Secure Properties Configuration -->
+	<secure-properties:config name="Secure_Properties_Config" doc:name="Secure Properties Config" 
+		file="config/secure-properties-${mule.env}.yaml" key="${secure.key}">
+		<secure-properties:encrypt algorithm="AES" mode="CBC"/>
+	</secure-properties:config>
+
+	<!-- Configuration Properties -->
+	<configuration-properties doc:name="Configuration Properties - Common" file="config/application.yaml"/>
+	<configuration-properties doc:name="Configuration Properties - Environment" file="config/application-${mule.env}.yaml"/>
+
+	<!-- Default Error Handler Reference -->
+	<configuration defaultErrorHandler-ref="global-error-handler" doc:name="Configuration"/>
+
+	<!-- HTTP Listener Configuration -->
+	<http:listener-config name="HTTP_Listener_Config" doc:name="HTTP Listener Config">
+		<http:listener-connection host="${http.host}" port="${http.port}"/>
+	</http:listener-config>
+
+	<!-- TLS Context for SAP Communication -->
+	<tls:context name="SAP_TLS_Context" doc:name="TLS Context">
+		<tls:trust-store insecure="true"/>
+	</tls:context>
+
+	<!-- HTTP Request Configuration for SAP S/4HANA -->
+	<http:request-config name="SAP_HTTP_Request_Config" doc:name="SAP HTTP Request Config" 
+		responseTimeout="${sap.s4.timeout}">
+		<http:request-connection host="${sap.host}" port="${sap.port}" protocol="HTTPS">
+			<reconnection>
+				<reconnect frequency="${sap.s4.retry.interval}" count="${sap.s4.retry.maxAttempts}"/>
+			</reconnection>
+			<tls:context>
+				<tls:trust-store insecure="true"/>
+			</tls:context>
+			<http:authentication>
+				<http:basic-authentication username="${secure::sap.username}" password="${secure::sap.password}"/>
+			</http:authentication>
+		</http:request-connection>
+	</http:request-config>
+
+	<!-- APIKit Configuration -->
+	<apikit:config name="salesforce-sap-api-config" doc:name="APIKit Config" 
+		api="api/salesforce-sap-api.raml" 
+		outboundHeadersMapName="outboundHeaders" 
+		httpStatusVarName="httpStatus"/>
+
+	<!-- API Autodiscovery -->
+	<api-gateway:autodiscovery apiId="${api.autodiscovery.id}" 
+		ignoreBasePath="true" 
+		doc:name="API Autodiscovery" 
+		flowRef="salesforce-sap-api-main"/>
+
+	<!-- Object Store for Pricing Cache -->
+	<os:object-store name="Pricing_Cache_Object_Store" doc:name="Pricing Cache Object Store"
+		entryTtl="${cache.pricing.ttl}"
+		entryTtlUnit="SECONDS"
+		maxEntries="${cache.pricing.maxEntries}"
+		persistent="false"/>
+
+	<!-- Object Store for Inventory Cache -->
+	<os:object-store name="Inventory_Cache_Object_Store" doc:name="Inventory Cache Object Store"
+		entryTtl="${cache.inventory.ttl}"
+		entryTtlUnit="SECONDS"
+		maxEntries="${cache.inventory.maxEntries}"
+		persistent="false"/>
+
+</mule>

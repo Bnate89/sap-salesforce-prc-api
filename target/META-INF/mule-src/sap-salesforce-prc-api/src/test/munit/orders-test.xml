@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+	xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+		http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+
+	<munit:config name="orders-test-suite" doc:name="MUnit Configuration"/>
+
+	<!-- Test Order Creation Success -->
+	<munit:test name="test-post-order-success" doc:name="Test POST Order Success" description="Test successful order creation in SAP">
+		<munit:behavior>
+			<!-- Mock SAP HTTP GET for CSRF token -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock CSRF Token">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="Fetch CSRF Token"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value="#['']"/>
+					<munit-tools:attributes value="#[{headers: {'x-csrf-token': 'test-csrf-token'}}]"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+			<!-- Mock SAP HTTP POST for order creation -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock SAP Order Create">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="SAP HTTP POST"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value='#[{"d": {"SalesOrder": "SO001", "OverallSDProcessStatus": "CREATED", "TotalNetAmount": "1500.00"}}]' mediaType="application/json"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set Order Request">
+				<munit:payload value='#[{"salesforceQuoteId": "Q001", "customerId": "CUST001", "orderDate": "2024-01-15T10:30:00Z", "currency": "USD", "items": [{"productId": "PROD001", "quantity": 10, "unitPrice": 100}, {"productId": "PROD002", "quantity": 5, "unitPrice": 100}]}]' mediaType="application/json"/>
+				<munit:attributes value="#[{method: 'POST', requestPath: '/api/orders'}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call POST Orders Flow" name="post:\orders:application\json:salesforce-sap-api-config"/>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert SAP Order ID" expression="#[payload.sapOrderId]" is="#[MunitTools::equalTo('SO001')]"/>
+			<munit-tools:assert-that doc:name="Assert Status" expression="#[payload.status]" is="#[MunitTools::equalTo('CREATED')]"/>
+			<munit-tools:assert-equals doc:name="Assert HTTP Status 201" actual="#[vars.httpStatus]" expected="#[201]"/>
+		</munit:validation>
+	</munit:test>
+
+	<!-- Test Order Status Retrieval Success -->
+	<munit:test name="test-get-order-status-success" doc:name="Test GET Order Status Success" description="Test successful order status retrieval">
+		<munit:behavior>
+			<!-- Mock SAP HTTP GET -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock SAP Order Status">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="SAP HTTP GET"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value='#[{"d": {"SalesOrder": "SO001", "OverallSDProcessStatus": "COMPLETED", "LastChangeDateTime": "/Date(1705320600000)/"}}]' mediaType="application/json"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set Order Status Request">
+				<munit:payload value="#['']"/>
+				<munit:attributes value="#[{method: 'GET', requestPath: '/api/orders', queryParams: {sapOrderId: 'SO001'}}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call GET Orders Flow" name="get:\orders:salesforce-sap-api-config"/>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert SAP Order ID" expression="#[payload.sapOrderId]" is="#[MunitTools::equalTo('SO001')]"/>
+			<munit-tools:assert-that doc:name="Assert Status" expression="#[payload.status]" is="#[MunitTools::equalTo('COMPLETED')]"/>
+		</munit:validation>
+	</munit:test>
+
+	<!-- Test Order Creation SAP Error -->
+	<munit:test name="test-post-order-sap-error" doc:name="Test POST Order SAP Error" description="Test SAP error handling during order creation" expectedErrorType="HTTP:INTERNAL_SERVER_ERROR">
+		<munit:behavior>
+			<!-- Mock SAP HTTP GET for CSRF token -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock CSRF Token">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="Fetch CSRF Token"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload value="#['']"/>
+					<munit-tools:attributes value="#[{headers: {'x-csrf-token': 'test-csrf-token'}}]"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+			<!-- Mock SAP HTTP POST with error -->
+			<munit-tools:mock-when processor="http:request" doc:name="Mock SAP Error">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="SAP HTTP POST"/>
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="HTTP:INTERNAL_SERVER_ERROR"/>
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution>
+			<munit:set-event doc:name="Set Order Request">
+				<munit:payload value='#[{"salesforceQuoteId": "Q001", "customerId": "INVALID", "orderDate": "2024-01-15T10:30:00Z", "currency": "USD", "items": [{"productId": "PROD001", "quantity": 10, "unitPrice": 100}]}]' mediaType="application/json"/>
+				<munit:attributes value="#[{method: 'POST', requestPath: '/api/orders'}]"/>
+			</munit:set-event>
+			<flow-ref doc:name="Call POST Orders Flow" name="post:\orders:application\json:salesforce-sap-api-config"/>
+		</munit:execution>
+	</munit:test>
+
+</mule>
